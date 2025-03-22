@@ -1,15 +1,14 @@
 
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { ChevronRight, Brain, Send, CopyCheck, RotateCcw, Loader2 } from "lucide-react";
 import { generateQuestion } from "@/services/apiService";
+import CompetitionSelector from "./CompetitionSelector";
 
 type QuestionType = {
   question: string;
@@ -33,6 +32,12 @@ const QuestionGenerator: React.FC = () => {
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [isAnswered, setIsAnswered] = useState<boolean>(false);
   const [isCorrect, setIsCorrect] = useState<boolean>(false);
+
+  const handleSelectCompetition = (selectedCompetition: string) => {
+    setCompetition(selectedCompetition);
+    toast.success(`Concurso "${selectedCompetition}" selecionado!`);
+    setStep(2);
+  };
 
   const generateNewQuestion = async () => {
     if (!competition || !difficulty) {
@@ -64,11 +69,6 @@ const QuestionGenerator: React.FC = () => {
   };
 
   const handleNextStep = () => {
-    if (step === 1 && !competition.trim()) {
-      toast.error("Por favor, informe o concurso desejado.");
-      return;
-    }
-    
     if (step === 2 && !difficulty) {
       toast.error("Por favor, selecione o nível de dificuldade.");
       return;
@@ -103,6 +103,15 @@ const QuestionGenerator: React.FC = () => {
     }
   };
 
+  const resetSelection = () => {
+    setStep(1);
+    setCompetition("");
+    setDifficulty("");
+    setQuestion(null);
+    setSelectedOption(null);
+    setIsAnswered(false);
+  };
+
   return (
     <div className="w-full max-w-3xl mx-auto p-4 animate-fade-in">
       <Card className="w-full border border-border/30 shadow-sm glass-morphism">
@@ -122,18 +131,18 @@ const QuestionGenerator: React.FC = () => {
               {step === 1 && (
                 <div className="space-y-4">
                   <h3 className="text-lg font-medium">Para qual concurso você deseja estudar?</h3>
-                  <Input
-                    placeholder="Ex: Concurso TRT, Concurso Polícia Federal..."
-                    value={competition}
-                    onChange={(e) => setCompetition(e.target.value)}
-                    className="transition-all-300"
-                  />
+                  <CompetitionSelector onSelect={handleSelectCompetition} />
                 </div>
               )}
               
               {step === 2 && (
                 <div className="space-y-4">
                   <h3 className="text-lg font-medium">Escolha o nível de dificuldade das questões:</h3>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground">Concurso selecionado:</span>
+                    <span className="font-medium">{competition}</span>
+                    <Button variant="ghost" size="sm" onClick={resetSelection}>Alterar</Button>
+                  </div>
                   <Select value={difficulty} onValueChange={setDifficulty}>
                     <SelectTrigger className="w-full transition-all-300">
                       <SelectValue placeholder="Selecione o nível de dificuldade" />
@@ -231,7 +240,7 @@ const QuestionGenerator: React.FC = () => {
         </CardContent>
         
         <CardFooter className="flex justify-end gap-3 pt-4">
-          {step <= 3 && !question && (
+          {step <= 3 && !question && step > 1 && (
             <Button
               className="gap-1 transition-all-300"
               onClick={handleNextStep}
