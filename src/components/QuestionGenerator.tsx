@@ -9,6 +9,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { ChevronRight, Brain, Send, CopyCheck, RotateCcw, Loader2 } from "lucide-react";
+import { generateQuestion } from "@/services/apiService";
 
 type QuestionType = {
   question: string;
@@ -33,29 +34,33 @@ const QuestionGenerator: React.FC = () => {
   const [isAnswered, setIsAnswered] = useState<boolean>(false);
   const [isCorrect, setIsCorrect] = useState<boolean>(false);
 
-  const generateSampleQuestion = () => {
+  const generateNewQuestion = async () => {
+    if (!competition || !difficulty) {
+      toast.error("Por favor, preencha todos os campos necessários.");
+      return;
+    }
+
     setIsGenerating(true);
+    setQuestion(null);
+    setIsAnswered(false);
+    setSelectedOption(null);
 
-    // Simulating API call delay
-    setTimeout(() => {
-      // Sample question (in real implementation, this would come from the API)
-      const sampleQuestion: QuestionType = {
-        question: "Em relação ao controle de constitucionalidade no sistema jurídico brasileiro, assinale a alternativa correta:",
-        options: [
-          "O controle difuso de constitucionalidade só pode ser exercido pelo Supremo Tribunal Federal.",
-          "No controle concentrado, qualquer juiz ou tribunal pode declarar a inconstitucionalidade de uma norma.",
-          "A Ação Direta de Inconstitucionalidade (ADI) pode ser proposta por qualquer cidadão brasileiro.",
-          "O controle difuso ocorre quando um juiz ou tribunal declara a inconstitucionalidade de uma norma em um caso concreto.",
-        ],
-        answer: 3, // Index of the correct answer (0-based)
-        explanation: "O controle difuso ou concreto de constitucionalidade é aquele exercido por qualquer juiz ou tribunal no curso de um processo judicial, analisando a constitucionalidade de uma norma diante de um caso concreto. As demais alternativas contêm erros: o controle difuso não é exclusivo do STF; no controle concentrado, apenas o tribunal competente (geralmente o STF) pode declarar a inconstitucionalidade; e a ADI só pode ser proposta pelos legitimados no art. 103 da Constituição Federal, não por qualquer cidadão.",
-      };
+    try {
+      const response = await generateQuestion({
+        competition,
+        difficulty
+      });
 
-      setQuestion(sampleQuestion);
+      if (response) {
+        setQuestion(response);
+        toast.success("Questão gerada com sucesso!");
+      }
+    } catch (error) {
+      console.error("Erro ao gerar questão:", error);
+      toast.error("Não foi possível gerar a questão. Tente novamente.");
+    } finally {
       setIsGenerating(false);
-      setIsAnswered(false);
-      setSelectedOption(null);
-    }, 2000);
+    }
   };
 
   const handleNextStep = () => {
@@ -70,7 +75,7 @@ const QuestionGenerator: React.FC = () => {
     }
     
     if (step === 3) {
-      generateSampleQuestion();
+      generateNewQuestion();
     } else {
       setStep(step + 1);
     }
@@ -96,11 +101,6 @@ const QuestionGenerator: React.FC = () => {
     } else {
       toast.error("Resposta incorreta!");
     }
-  };
-
-  const generateNewQuestion = () => {
-    setQuestion(null);
-    generateSampleQuestion();
   };
 
   return (
