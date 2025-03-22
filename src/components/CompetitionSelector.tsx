@@ -6,6 +6,7 @@ import { Command, CommandInput, CommandList, CommandGroup, CommandItem } from "@
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Search, Filter, Check, MapPin } from "lucide-react";
+import { toast } from "sonner";
 
 type CompetitionCategory = {
   name: string;
