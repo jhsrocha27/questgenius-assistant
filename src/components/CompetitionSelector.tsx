@@ -1,11 +1,11 @@
-
 import React, { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Command, CommandInput, CommandList, CommandGroup, CommandItem } from "@/components/ui/command";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem } from "@/components/ui/dropdown-menu";
-import { Search, Filter, Check } from "lucide-react";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { Search, Filter, Check, MapPin } from "lucide-react";
 
 type CompetitionCategory = {
   name: string;
@@ -14,6 +14,11 @@ type CompetitionCategory = {
 
 type Region = "Norte" | "Nordeste" | "Centro-Oeste" | "Sudeste" | "Sul" | "Nacional";
 type EducationLevel = "Fundamental" | "Médio" | "Técnico" | "Superior";
+
+// Mapping of competitions to available locations
+type CompetitionLocation = {
+  [key: string]: string[];
+}
 
 const competitionCategories: CompetitionCategory[] = [
   {
@@ -65,6 +70,26 @@ const competitionCategories: CompetitionCategory[] = [
 const regions: Region[] = ["Norte", "Nordeste", "Centro-Oeste", "Sudeste", "Sul", "Nacional"];
 const educationLevels: EducationLevel[] = ["Fundamental", "Médio", "Técnico", "Superior"];
 
+// Competition locations mapping
+const competitionLocations: CompetitionLocation = {
+  "Polícia Civil": ["São Paulo", "Rio de Janeiro", "Minas Gerais", "Bahia", "Paraná", "Santa Catarina"],
+  "Polícia Militar": ["São Paulo", "Rio de Janeiro", "Minas Gerais", "Espírito Santo", "Goiás", "Pernambuco"],
+  "INSS": ["Nacional (todas as regiões)"],
+  "Receita Federal": ["Nacional (todas as regiões)"],
+  "Banco do Brasil": ["Nacional (todas as regiões)"],
+  "Caixa Econômica Federal": ["Nacional (todas as regiões)"],
+  "Prefeitura": ["São Paulo", "Rio de Janeiro", "Belo Horizonte", "Salvador", "Fortaleza", "Recife", "Porto Alegre"],
+  "Professor": ["São Paulo", "Rio de Janeiro", "Minas Gerais", "Paraná", "Bahia", "Goiás", "Distrito Federal"],
+  "Enfermeiro": ["São Paulo", "Rio de Janeiro", "Minas Gerais", "Bahia", "Santa Catarina", "Amazonas"],
+  "Médico": ["São Paulo", "Rio de Janeiro", "Minas Gerais", "Bahia", "Paraná", "Rio Grande do Sul"],
+  // Add default for other competitions
+};
+
+// Helper function to get available locations for a competition
+const getCompetitionLocations = (competition: string): string[] => {
+  return competitionLocations[competition] || ["Nacional (todas as regiões)"];
+};
+
 interface CompetitionSelectorProps {
   onSelect: (competition: string) => void;
 }
@@ -74,10 +99,21 @@ const CompetitionSelector: React.FC<CompetitionSelectorProps> = ({ onSelect }) =
   const [selectedRegion, setSelectedRegion] = useState<Region | "">("");
   const [selectedEducationLevel, setSelectedEducationLevel] = useState<EducationLevel | "">("");
   const [currentTab, setCurrentTab] = useState<string>("categorias");
+  const [selectedCompetition, setSelectedCompetition] = useState<string | null>(null);
+  const [showLocationPopover, setShowLocationPopover] = useState<boolean>(false);
   
-  // Função para mostrar notificação de disponibilidade do concurso
-  const handleSelectCompetition = (competition: string) => {
+  // Handle competition selection first to show locations
+  const handleCompetitionClick = (competition: string) => {
+    setSelectedCompetition(competition);
+    setShowLocationPopover(true);
+  };
+  
+  // Handle final selection with location confirmation
+  const handleLocationSelect = (competition: string) => {
+    setShowLocationPopover(false);
+    setSelectedCompetition(null);
     onSelect(competition);
+    toast.success(`Concurso "${competition}" selecionado!`);
   };
   
   // Filtra a lista de concursos com base na pesquisa e filtros
@@ -158,14 +194,38 @@ const CompetitionSelector: React.FC<CompetitionSelectorProps> = ({ onSelect }) =
               <h3 className="text-sm font-medium text-muted-foreground">{category.name}</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
                 {category.competitions.map((comp) => (
-                  <Button 
-                    key={comp} 
-                    variant="outline" 
-                    className="justify-start text-left hover:bg-primary/10 hover:text-primary transition-colors"
-                    onClick={() => handleSelectCompetition(comp)}
-                  >
-                    {comp}
-                  </Button>
+                  <Popover key={comp} open={selectedCompetition === comp && showLocationPopover} onOpenChange={(open) => {
+                    if (!open) setShowLocationPopover(false);
+                  }}>
+                    <PopoverTrigger asChild>
+                      <Button 
+                        variant="outline" 
+                        className="justify-start text-left hover:bg-primary/10 hover:text-primary transition-colors"
+                        onClick={() => handleCompetitionClick(comp)}
+                      >
+                        {comp}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-64 p-0">
+                      <div className="p-4 border-b">
+                        <h4 className="font-medium">Localidades disponíveis:</h4>
+                        <p className="text-sm text-muted-foreground">{comp}</p>
+                      </div>
+                      <div className="max-h-80 overflow-auto p-2">
+                        {getCompetitionLocations(comp).map((location, idx) => (
+                          <Button 
+                            key={idx} 
+                            variant="ghost" 
+                            className="w-full justify-start text-left my-1"
+                            onClick={() => handleLocationSelect(comp)}
+                          >
+                            <MapPin className="h-4 w-4 mr-2 text-primary" />
+                            {location}
+                          </Button>
+                        ))}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
                 ))}
               </div>
             </div>
@@ -181,10 +241,35 @@ const CompetitionSelector: React.FC<CompetitionSelectorProps> = ({ onSelect }) =
                   {category.competitions.map((comp) => (
                     <CommandItem 
                       key={comp}
-                      onSelect={() => handleSelectCompetition(comp)}
+                      onSelect={() => handleCompetitionClick(comp)}
                       className="cursor-pointer"
                     >
                       {comp}
+                      {selectedCompetition === comp && showLocationPopover && (
+                        <Popover open={true} onOpenChange={(open) => {
+                          if (!open) setShowLocationPopover(false);
+                        }}>
+                          <PopoverContent className="w-64 p-0">
+                            <div className="p-4 border-b">
+                              <h4 className="font-medium">Localidades disponíveis:</h4>
+                              <p className="text-sm text-muted-foreground">{comp}</p>
+                            </div>
+                            <div className="max-h-80 overflow-auto p-2">
+                              {getCompetitionLocations(comp).map((location, idx) => (
+                                <Button 
+                                  key={idx} 
+                                  variant="ghost" 
+                                  className="w-full justify-start text-left my-1"
+                                  onClick={() => handleLocationSelect(comp)}
+                                >
+                                  <MapPin className="h-4 w-4 mr-2 text-primary" />
+                                  {location}
+                                </Button>
+                              ))}
+                            </div>
+                          </PopoverContent>
+                        </Popover>
+                      )}
                     </CommandItem>
                   ))}
                 </CommandGroup>
