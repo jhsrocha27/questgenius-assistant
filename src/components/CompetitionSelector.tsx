@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -103,21 +102,29 @@ const CompetitionSelector: React.FC<CompetitionSelectorProps> = ({ onSelect }) =
   const [currentTab, setCurrentTab] = useState<string>("categorias");
   const [selectedCompetition, setSelectedCompetition] = useState<string | null>(null);
   const [showLocationPopover, setShowLocationPopover] = useState<boolean>(false);
-  
+  const [selectedLocation, setSelectedLocation] = useState<string>("");
+
   // Handle competition selection first to show locations
   const handleCompetitionClick = (competition: string) => {
     setSelectedCompetition(competition);
     setShowLocationPopover(true);
   };
-  
+
   // Handle final selection with location confirmation
-  const handleLocationSelect = (competition: string) => {
+  const handleLocationSelect = (location: string, competition: string) => {
     setShowLocationPopover(false);
+    setSelectedLocation("");
     setSelectedCompetition(null);
-    onSelect(competition);
-    toast.success(`Concurso "${competition}" selecionado!`);
+
+    // Format the competition string with location if it's not "Nacional"
+    const formattedCompetition = location !== "Nacional (todas as regiões)" 
+      ? `${competition} - ${location}` 
+      : competition;
+
+    onSelect(formattedCompetition);
+    toast.success(`Concurso "${formattedCompetition}" selecionado!`);
   };
-  
+
   // Filtra a lista de concursos com base na pesquisa e filtros
   const filteredCompetitions = competitionCategories.map(category => {
     const filteredList = category.competitions.filter(comp => 
@@ -197,49 +204,51 @@ const CompetitionSelector: React.FC<CompetitionSelectorProps> = ({ onSelect }) =
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
                 {category.competitions.map((comp) => (
                   <div key={comp}>
-                    <Popover
-                      open={selectedCompetition === comp && showLocationPopover}
-                      onOpenChange={(open) => {
-                        if (!open) {
-                          setShowLocationPopover(false);
-                          setSelectedCompetition(null);
-                        }
-                      }}
+                    <Button 
+                      variant="outline" 
+                      className="w-full justify-start text-left hover:bg-primary/10 hover:text-primary transition-colors"
+                      onClick={() => handleCompetitionClick(comp)}
                     >
-                      <PopoverTrigger asChild>
-                        <Button 
-                          variant="outline" 
-                          className="w-full justify-start text-left hover:bg-primary/10 hover:text-primary transition-colors"
-                          onClick={() => handleCompetitionClick(comp)}
-                        >
-                          {comp}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-64 p-0">
-                        <div className="p-4 border-b">
-                          <h4 className="font-medium">Localidades disponíveis:</h4>
-                          <p className="text-sm text-muted-foreground">{comp}</p>
-                        </div>
-                        <div className="max-h-80 overflow-auto p-2">
-                          {getCompetitionLocations(comp).map((location, idx) => (
-                            <Button 
-                              key={idx} 
-                              variant="ghost" 
-                              className="w-full justify-start text-left my-1"
-                              onClick={() => handleLocationSelect(comp)}
-                            >
-                              <MapPin className="h-4 w-4 mr-2 text-primary" />
-                              {location}
-                            </Button>
-                          ))}
-                        </div>
-                      </PopoverContent>
-                    </Popover>
+                      {comp}
+                    </Button>
                   </div>
                 ))}
               </div>
             </div>
           ))}
+
+          {/* Locations popover for categories view */}
+          {selectedCompetition && showLocationPopover && (
+            <Popover 
+              open={true} 
+              onOpenChange={(open) => {
+                if (!open) {
+                  setShowLocationPopover(false);
+                  setSelectedCompetition(null);
+                }
+              }}
+            >
+              <PopoverContent className="w-64 p-0 mt-2">
+                <div className="p-4 border-b">
+                  <h4 className="font-medium">Localidades disponíveis:</h4>
+                  <p className="text-sm text-muted-foreground">{selectedCompetition}</p>
+                </div>
+                <div className="max-h-80 overflow-auto p-2">
+                  {getCompetitionLocations(selectedCompetition).map((location, idx) => (
+                    <Button 
+                      key={idx} 
+                      variant="ghost" 
+                      className="w-full justify-start text-left my-1"
+                      onClick={() => handleLocationSelect(location, selectedCompetition)}
+                    >
+                      <MapPin className="h-4 w-4 mr-2 text-primary" />
+                      {location}
+                    </Button>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
+          )}
         </TabsContent>
         
         <TabsContent value="lista">
@@ -284,7 +293,7 @@ const CompetitionSelector: React.FC<CompetitionSelectorProps> = ({ onSelect }) =
                       key={idx} 
                       variant="ghost" 
                       className="w-full justify-start text-left my-1"
-                      onClick={() => handleLocationSelect(selectedCompetition)}
+                      onClick={() => handleLocationSelect(location, selectedCompetition)}
                     >
                       <MapPin className="h-4 w-4 mr-2 text-primary" />
                       {location}
