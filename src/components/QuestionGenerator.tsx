@@ -6,15 +6,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { ChevronRight, Brain, Send, CopyCheck, RotateCcw, Loader2 } from "lucide-react";
+import { ChevronRight, Brain, Send, CopyCheck, RotateCcw, Loader2, BookOpen, PenTool } from "lucide-react";
 import { generateQuestion } from "@/services/apiService";
 import CompetitionSelector from "./CompetitionSelector";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type QuestionType = {
   question: string;
   options: string[];
   answer: number;
   explanation: string;
+  alternativeExplanations?: string[]; // Explicações para cada alternativa
 };
 
 const difficultyLevels = [
@@ -32,6 +34,7 @@ const QuestionGenerator: React.FC = () => {
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [isAnswered, setIsAnswered] = useState<boolean>(false);
   const [isCorrect, setIsCorrect] = useState<boolean>(false);
+  const [explanationTab, setExplanationTab] = useState<string>("general");
 
   const handleSelectCompetition = (selectedCompetition: string) => {
     setCompetition(selectedCompetition);
@@ -49,6 +52,7 @@ const QuestionGenerator: React.FC = () => {
     setQuestion(null);
     setIsAnswered(false);
     setSelectedOption(null);
+    setExplanationTab("general");
 
     try {
       const response = await generateQuestion({
@@ -97,9 +101,9 @@ const QuestionGenerator: React.FC = () => {
     setIsCorrect(selectedOption === question?.answer);
     
     if (selectedOption === question?.answer) {
-      toast.success("Resposta correta!");
+      toast.success("Resposta correta! Parabéns!");
     } else {
-      toast.error("Resposta incorreta!");
+      toast.error("Resposta incorreta. Veja a explicação abaixo!");
     }
   };
 
@@ -110,6 +114,11 @@ const QuestionGenerator: React.FC = () => {
     setQuestion(null);
     setSelectedOption(null);
     setIsAnswered(false);
+  };
+
+  // Helper para exibir a letra da alternativa
+  const getOptionLetter = (index: number): string => {
+    return String.fromCharCode(65 + index); // A, B, C, D, E...
   };
 
   return (
@@ -179,9 +188,15 @@ const QuestionGenerator: React.FC = () => {
           {question && (
             <div className="space-y-6 animate-fade-in">
               <div className="space-y-4">
-                <span className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
-                  {difficulty === "facil" ? "Fácil" : difficulty === "medio" ? "Médio" : "Difícil"}
-                </span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
+                    {difficulty === "facil" ? "Fácil" : difficulty === "medio" ? "Médio" : "Difícil"}
+                  </span>
+                  <span className="inline-flex items-center rounded-full bg-secondary px-2.5 py-0.5 text-xs font-medium">
+                    {competition}
+                  </span>
+                </div>
+                
                 <h3 className="text-lg font-medium leading-7">{question.question}</h3>
                 
                 <RadioGroup value={selectedOption?.toString()} className="space-y-3 pt-3">
@@ -217,7 +232,7 @@ const QuestionGenerator: React.FC = () => {
                         htmlFor={`option-${index}`}
                         className="text-sm font-normal leading-relaxed"
                       >
-                        {option}
+                        <span className="font-medium">{getOptionLetter(index)})</span> {option}
                       </Label>
                       {isAnswered && index === question.answer && (
                         <CopyCheck className="ml-auto flex-shrink-0 h-5 w-5 text-green-600" />
@@ -228,11 +243,71 @@ const QuestionGenerator: React.FC = () => {
               </div>
               
               {isAnswered && (
-                <div className="rounded-md border p-4 mt-4 bg-secondary/50 animate-fade-in-up">
-                  <h4 className="font-medium mb-2">Explicação:</h4>
-                  <p className="text-sm text-muted-foreground leading-relaxed">
-                    {question.explanation}
-                  </p>
+                <div className="rounded-md border mt-4 animate-fade-in-up overflow-hidden">
+                  <Tabs value={explanationTab} onValueChange={setExplanationTab}>
+                    <TabsList className="w-full grid grid-cols-2">
+                      <TabsTrigger value="general" className="flex items-center gap-1">
+                        <BookOpen className="h-4 w-4" />
+                        <span>Explicação Geral</span>
+                      </TabsTrigger>
+                      <TabsTrigger value="alternatives" className="flex items-center gap-1">
+                        <PenTool className="h-4 w-4" />
+                        <span>Alternativas Detalhadas</span>
+                      </TabsTrigger>
+                    </TabsList>
+                    
+                    <TabsContent value="general" className="p-4 bg-secondary/50">
+                      <h4 className="font-medium mb-2">
+                        <span className={isCorrect ? "text-green-600" : "text-red-600"}>
+                          {isCorrect ? "Correto! " : "Incorreto. "}
+                        </span>
+                        Explicação:
+                      </h4>
+                      <p className="text-sm text-muted-foreground leading-relaxed">
+                        {question.explanation}
+                      </p>
+                    </TabsContent>
+                    
+                    <TabsContent value="alternatives" className="bg-secondary/50">
+                      <div className="p-4">
+                        <h4 className="font-medium mb-2">Análise de cada alternativa:</h4>
+                      </div>
+                      
+                      <div className="space-y-1">
+                        {question.options.map((option, index) => (
+                          <div 
+                            key={index}
+                            className={`p-3 border-t ${
+                              index === question.answer 
+                                ? "bg-green-50/50 dark:bg-green-900/10" 
+                                : ""
+                            }`}
+                          >
+                            <p className="text-sm font-medium mb-1 flex items-center">
+                              <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full mr-2 text-xs ${
+                                index === question.answer 
+                                  ? "bg-green-600 text-white" 
+                                  : "bg-secondary text-muted-foreground"
+                              }`}>
+                                {getOptionLetter(index)}
+                              </span>
+                              <span className={index === question.answer ? "text-green-600" : ""}>
+                                {option}
+                              </span>
+                            </p>
+                            
+                            <p className="text-sm text-muted-foreground leading-relaxed ml-8">
+                              {question.alternativeExplanations && question.alternativeExplanations[index] 
+                                ? question.alternativeExplanations[index]
+                                : index === question.answer
+                                  ? "Esta é a alternativa correta conforme explicação acima."
+                                  : "Esta alternativa está incorreta."}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </TabsContent>
+                  </Tabs>
                 </div>
               )}
             </div>
