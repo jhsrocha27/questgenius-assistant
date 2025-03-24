@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -100,22 +101,20 @@ const CompetitionSelector: React.FC<CompetitionSelectorProps> = ({ onSelect }) =
   const [selectedRegion, setSelectedRegion] = useState<Region | "">("");
   const [selectedEducationLevel, setSelectedEducationLevel] = useState<EducationLevel | "">("");
   const [currentTab, setCurrentTab] = useState<string>("categorias");
-  const [selectedCompetition, setSelectedCompetition] = useState<string | null>(null);
+  const [openPopoverId, setOpenPopoverId] = useState<string | null>(null);
   const [selectedLocation, setSelectedLocation] = useState<string>("");
-  const [locationPopoverOpen, setLocationPopoverOpen] = useState<boolean>(false);
-  const [locationPopoverPosition, setLocationPopoverPosition] = useState<{x: number, y: number}>({x: 0, y: 0});
 
   // Handle competition selection to show locations
-  const handleCompetitionClick = (competition: string) => {
-    setSelectedCompetition(competition);
-    setLocationPopoverOpen(true);
+  const handleCompetitionClick = (competitionId: string, event: React.MouseEvent) => {
+    event.stopPropagation(); // Prevent event bubbling
+    event.preventDefault(); // Prevent default button behavior
+    setOpenPopoverId(openPopoverId === competitionId ? null : competitionId);
   };
 
   // Handle final selection with location confirmation
   const handleLocationSelect = (location: string, competition: string) => {
-    setLocationPopoverOpen(false);
+    setOpenPopoverId(null);
     setSelectedLocation(location);
-    setSelectedCompetition(null);
 
     // Format the competition string with location if it's not "Nacional"
     const formattedCompetition = location !== "Nacional (todas as regiões)" 
@@ -125,6 +124,20 @@ const CompetitionSelector: React.FC<CompetitionSelectorProps> = ({ onSelect }) =
     onSelect(formattedCompetition);
     toast.success(`Concurso "${formattedCompetition}" selecionado!`);
   };
+
+  // Close popover when clicking outside
+  useEffect(() => {
+    const handleClickOutside = () => {
+      if (openPopoverId) {
+        setOpenPopoverId(null);
+      }
+    };
+
+    document.addEventListener('click', handleClickOutside);
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+    };
+  }, [openPopoverId]);
 
   // Filtra a lista de concursos com base na pesquisa e filtros
   const filteredCompetitions = competitionCategories.map(category => {
@@ -136,6 +149,11 @@ const CompetitionSelector: React.FC<CompetitionSelectorProps> = ({ onSelect }) =
       competitions: filteredList
     };
   }).filter(category => category.competitions.length > 0);
+
+  // Create unique IDs for competitions
+  const getCompetitionId = (category: string, competition: string) => {
+    return `${category}-${competition}`.replace(/\s+/g, '-').toLowerCase();
+  };
 
   return (
     <div className="space-y-4 w-full animate-fade-in">
@@ -203,43 +221,44 @@ const CompetitionSelector: React.FC<CompetitionSelectorProps> = ({ onSelect }) =
             <div key={category.name} className="space-y-2">
               <h3 className="text-sm font-medium text-muted-foreground">{category.name}</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                {category.competitions.map((comp) => (
-                  <Popover key={comp} open={selectedCompetition === comp && locationPopoverOpen} onOpenChange={(open) => {
-                    if (!open) {
-                      setLocationPopoverOpen(false);
-                      setSelectedCompetition(null);
-                    }
-                  }}>
-                    <PopoverTrigger asChild>
+                {category.competitions.map((comp) => {
+                  const competitionId = getCompetitionId(category.name, comp);
+                  return (
+                    <div key={competitionId} className="relative">
                       <Button 
                         variant="outline" 
                         className="w-full justify-start text-left hover:bg-primary/10 hover:text-primary transition-colors"
-                        onClick={() => handleCompetitionClick(comp)}
+                        onClick={(e) => handleCompetitionClick(competitionId, e)}
                       >
                         {comp}
                       </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="p-0">
-                      <div className="p-4 border-b">
-                        <h4 className="font-medium">Localidades disponíveis:</h4>
-                        <p className="text-sm text-muted-foreground">{comp}</p>
-                      </div>
-                      <div className="max-h-80 overflow-auto p-2">
-                        {getCompetitionLocations(comp).map((location, idx) => (
-                          <Button 
-                            key={idx} 
-                            variant="ghost" 
-                            className="w-full justify-start text-left my-1"
-                            onClick={() => handleLocationSelect(location, comp)}
-                          >
-                            <MapPin className="h-4 w-4 mr-2 text-primary" />
-                            {location}
-                          </Button>
-                        ))}
-                      </div>
-                    </PopoverContent>
-                  </Popover>
-                ))}
+                      {openPopoverId === competitionId && (
+                        <div className="absolute z-50 w-72 mt-1 rounded-md border bg-popover p-4 text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95 slide-in-from-top-2">
+                          <div className="p-2 border-b">
+                            <h4 className="font-medium">Localidades disponíveis:</h4>
+                            <p className="text-sm text-muted-foreground">{comp}</p>
+                          </div>
+                          <div className="max-h-80 overflow-auto p-2">
+                            {getCompetitionLocations(comp).map((location, idx) => (
+                              <Button 
+                                key={idx} 
+                                variant="ghost" 
+                                className="w-full justify-start text-left my-1"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleLocationSelect(location, comp);
+                                }}
+                              >
+                                <MapPin className="h-4 w-4 mr-2 text-primary" />
+                                {location}
+                              </Button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           ))}
@@ -251,43 +270,45 @@ const CompetitionSelector: React.FC<CompetitionSelectorProps> = ({ onSelect }) =
             <CommandList>
               {filteredCompetitions.map((category) => (
                 <CommandGroup key={category.name} heading={category.name}>
-                  {category.competitions.map((comp) => (
-                    <CommandItem 
-                      key={comp}
-                      onSelect={() => handleCompetitionClick(comp)}
-                      className="cursor-pointer"
-                    >
-                      <Popover open={selectedCompetition === comp && locationPopoverOpen} onOpenChange={(open) => {
-                        if (!open) {
-                          setLocationPopoverOpen(false);
-                          setSelectedCompetition(null);
-                        }
-                      }}>
-                        <PopoverTrigger asChild>
-                          <div className="w-full">{comp}</div>
-                        </PopoverTrigger>
-                        <PopoverContent className="p-0">
-                          <div className="p-4 border-b">
-                            <h4 className="font-medium">Localidades disponíveis:</h4>
-                            <p className="text-sm text-muted-foreground">{comp}</p>
+                  {category.competitions.map((comp) => {
+                    const competitionId = getCompetitionId(category.name, comp);
+                    return (
+                      <CommandItem 
+                        key={competitionId}
+                        onSelect={(currentValue) => {
+                          handleCompetitionClick(competitionId, { stopPropagation: () => {}, preventDefault: () => {} } as React.MouseEvent);
+                        }}
+                        className="cursor-pointer relative"
+                      >
+                        <div className="w-full">{comp}</div>
+                        
+                        {openPopoverId === competitionId && (
+                          <div className="absolute z-50 w-72 left-full ml-1 top-0 rounded-md border bg-popover p-4 text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95 slide-in-from-left-2">
+                            <div className="p-2 border-b">
+                              <h4 className="font-medium">Localidades disponíveis:</h4>
+                              <p className="text-sm text-muted-foreground">{comp}</p>
+                            </div>
+                            <div className="max-h-80 overflow-auto p-2">
+                              {getCompetitionLocations(comp).map((location, idx) => (
+                                <Button 
+                                  key={idx} 
+                                  variant="ghost" 
+                                  className="w-full justify-start text-left my-1"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleLocationSelect(location, comp);
+                                  }}
+                                >
+                                  <MapPin className="h-4 w-4 mr-2 text-primary" />
+                                  {location}
+                                </Button>
+                              ))}
+                            </div>
                           </div>
-                          <div className="max-h-80 overflow-auto p-2">
-                            {getCompetitionLocations(comp).map((location, idx) => (
-                              <Button 
-                                key={idx} 
-                                variant="ghost" 
-                                className="w-full justify-start text-left my-1"
-                                onClick={() => handleLocationSelect(location, comp)}
-                              >
-                                <MapPin className="h-4 w-4 mr-2 text-primary" />
-                                {location}
-                              </Button>
-                            ))}
-                          </div>
-                        </PopoverContent>
-                      </Popover>
-                    </CommandItem>
-                  ))}
+                        )}
+                      </CommandItem>
+                    );
+                  })}
                 </CommandGroup>
               ))}
             </CommandList>
