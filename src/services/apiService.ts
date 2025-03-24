@@ -35,8 +35,17 @@ interface QuestionRecord {
   created_at?: string;
 }
 
+// Cache local para rastrear questões já geradas na sessão atual
+const questionCache = new Set<string>();
+
 // Função para verificar se uma questão já existe no banco
 const checkQuestionExists = async (questionText: string, userId?: string): Promise<boolean> => {
+  // Verificar no cache local primeiro
+  if (questionCache.has(questionText)) {
+    console.log("Questão encontrada no cache local");
+    return true;
+  }
+  
   try {
     const response = await fetch(`${SUPABASE_URL}/rest/v1/questions?question=eq.${encodeURIComponent(questionText)}${userId ? `&user_id=eq.${userId}` : ''}`, {
       method: "GET",
@@ -48,14 +57,47 @@ const checkQuestionExists = async (questionText: string, userId?: string): Promi
     });
 
     if (!response.ok) {
+      if (response.status === 404) {
+        // A tabela pode não existir ainda, vamos tentar criá-la
+        await createQuestionsTable();
+        return false;
+      }
       console.error("Erro ao verificar questão no Supabase:", response.statusText);
       return false;
     }
 
     const data = await response.json();
-    return data.length > 0;
+    const exists = data.length > 0;
+    
+    if (exists) {
+      // Adicionar ao cache local
+      questionCache.add(questionText);
+    }
+    
+    return exists;
   } catch (error) {
     console.error("Erro ao verificar questão no Supabase:", error);
+    return false;
+  }
+};
+
+// Função para criar a tabela de questões se não existir
+const createQuestionsTable = async (): Promise<boolean> => {
+  try {
+    // Usando SQL RPC para criar a tabela
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/create_questions_table`, {
+      method: "POST",
+      headers: {
+        "apikey": SUPABASE_API_KEY,
+        "Authorization": `Bearer ${SUPABASE_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({})
+    });
+
+    return response.ok;
+  } catch (error) {
+    console.error("Erro ao criar tabela de questões:", error);
     return false;
   }
 };
@@ -63,6 +105,9 @@ const checkQuestionExists = async (questionText: string, userId?: string): Promi
 // Função para salvar uma questão no banco
 const saveQuestion = async (question: QuestionRecord): Promise<void> => {
   try {
+    // Adicionar ao cache local primeiro
+    questionCache.add(question.question);
+    
     const response = await fetch(`${SUPABASE_URL}/rest/v1/questions`, {
       method: "POST",
       headers: {
@@ -75,6 +120,14 @@ const saveQuestion = async (question: QuestionRecord): Promise<void> => {
     });
 
     if (!response.ok) {
+      if (response.status === 404) {
+        // A tabela pode não existir, vamos tentar criá-la e salvar novamente
+        const created = await createQuestionsTable();
+        if (created) {
+          await saveQuestion(question);
+          return;
+        }
+      }
       throw new Error(`Erro ao salvar questão: ${response.status} - ${response.statusText}`);
     }
 
@@ -89,20 +142,25 @@ export const generateQuestion = async (params: QuestionParams): Promise<Question
   try {
     console.log("Gerando questão com parâmetros:", params);
     
+    // Aumentar a temperatura para maior variabilidade nas questões
+    const temperature = 0.9;
+    
     // Configuração para a chamada à API DeepSeek com instruções aprimoradas
     const prompt = `
-      Por favor, gere uma questão de múltipla escolha para o concurso ${params.competition} com nível de dificuldade ${params.difficulty}.
+      Por favor, gere uma questão de múltipla escolha ORIGINAL e ÚNICA para o concurso ${params.competition} com nível de dificuldade ${params.difficulty}.
       
       Siga estas diretrizes específicas:
       
       1. A questão deve ser baseada em editais anteriores deste concurso ou conteúdo típico para esta área.
-      2. Forneça EXATAMENTE 5 alternativas (A, B, C, D, E), sendo apenas uma correta.
-      3. Verifique a legislação vigente (2024) para garantir que a resposta esteja atualizada.
-      4. Crie uma explicação detalhada para a alternativa correta.
-      5. Forneça explicações específicas para CADA alternativa incorreta, explicando por que estão erradas.
-      6. Se a questão envolver leis alteradas recentemente, mencione a mudança na explicação.
-      7. Use linguagem clara, objetiva e profissional, própria para concursos.
-      8. Evite tecnicismos excessivos e prefira exemplos práticos quando possível.
+      2. É MUITO IMPORTANTE que a questão seja DIFERENTE das já geradas anteriormente para este concurso.
+      3. Evite questões muito genéricas e prefira conteúdos específicos da área.
+      4. Forneça EXATAMENTE 5 alternativas (A, B, C, D, E), sendo apenas uma correta.
+      5. Verifique a legislação vigente (2024) para garantir que a resposta esteja atualizada.
+      6. Crie uma explicação detalhada para a alternativa correta.
+      7. Forneça explicações específicas para CADA alternativa incorreta, explicando por que estão erradas.
+      8. Se a questão envolver leis alteradas recentemente, mencione a mudança na explicação.
+      9. Use linguagem clara, objetiva e profissional, própria para concursos.
+      10. Evite tecnicismos excessivos e prefira exemplos práticos quando possível.
       
       Responda APENAS no seguinte formato JSON:
       {
@@ -125,15 +183,18 @@ export const generateQuestion = async (params: QuestionParams): Promise<Question
       Você é uma inteligência artificial especializada na geração de questões para concursos públicos brasileiros, com amplo domínio de todas as matérias exigidas para cada concurso e profundo conhecimento das leis vigentes em 2024.
 
       Suas responsabilidades incluem:
-      1. Gerar questões únicas baseadas em editais de concursos reais
-      2. Garantir que as questões estejam atualizadas conforme a legislação vigente
-      3. Elaborar alternativas plausíveis, com apenas uma resposta correta
-      4. Fornecer explicações detalhadas para cada alternativa
-      5. Utilizar linguagem clara, objetiva e didática
-      6. Contextualizar as questões à realidade brasileira
-      7. Adaptar o nível de dificuldade conforme solicitado
+      1. Gerar questões ÚNICAS e ORIGINAIS baseadas em editais de concursos reais
+      2. EVITAR REPETIÇÕES de conteúdo, formato ou temas
+      3. Garantir que as questões estejam atualizadas conforme a legislação vigente
+      4. Elaborar alternativas plausíveis, com apenas uma resposta correta
+      5. Fornecer explicações detalhadas para cada alternativa
+      6. Utilizar linguagem clara, objetiva e didática
+      7. Contextualizar as questões à realidade brasileira
+      8. Adaptar o nível de dificuldade conforme solicitado
 
       Todas as suas questões devem ter alta qualidade didática e representar corretamente os conteúdos cobrados nos concursos públicos brasileiros atuais.
+      
+      MUITO IMPORTANTE: Para cada solicitação, você DEVE gerar uma questão COMPLETAMENTE NOVA e DIFERENTE das anteriores, mesmo que o tema seja semelhante.
     `;
 
     // Fazendo a chamada para a API DeepSeek
@@ -155,7 +216,7 @@ export const generateQuestion = async (params: QuestionParams): Promise<Question
             content: prompt
           }
         ],
-        temperature: 0.7,
+        temperature: temperature,
         max_tokens: 2000 // Aumentado para acomodar explicações mais detalhadas
       })
     });
@@ -187,13 +248,11 @@ export const generateQuestion = async (params: QuestionParams): Promise<Question
     }
     
     // Verificar se a questão já existe (para usuários registrados)
-    if (params.userId) {
-      const exists = await checkQuestionExists(questionData.question, params.userId);
-      if (exists) {
-        console.log("Questão já existente. Solicitando nova questão...");
-        // Recursivamente solicitar nova questão
-        return generateQuestion(params);
-      }
+    const exists = await checkQuestionExists(questionData.question, params.userId);
+    if (exists) {
+      console.log("Questão já existente. Solicitando nova questão...");
+      // Recursivamente solicitar nova questão
+      return generateQuestion(params);
     }
     
     // Salvar a questão no banco de dados (se não estiver em modo de teste)
