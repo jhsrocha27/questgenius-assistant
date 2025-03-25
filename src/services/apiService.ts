@@ -1,8 +1,9 @@
-
 // Nota: Em uma implementação real, esses tokens não deveriam estar no código do front-end
 // Idealmente, eles deveriam ser gerenciados através de um backend seguro ou OAuth
 
 import { toast } from "sonner";
+import { getCompetitionSubjects } from "./editalService";
+import { QuestionType } from "@/components/question-generator/types";
 
 const DEEPSEEK_API_KEY = "sk-b8df50ab1cd244149d65e64c287b34f3";
 const SUPABASE_API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndicHBuZm5sa2l6dGFoenFrZmFjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI2MDUxMjksImV4cCI6MjA1ODE4MTEyOX0.zGMLR4-mklzQ8RI1WZH0U9vFInWbbbwoC6cl19hEuTE";
@@ -12,14 +13,6 @@ type QuestionParams = {
   competition: string;
   subject: string;
   userId?: string; // Opcional para rastrear questões por usuário
-};
-
-type QuestionResponse = {
-  question: string;
-  options: string[];
-  answer: number;
-  explanation: string;
-  alternativeExplanations?: string[]; // Explicações para cada alternativa
 };
 
 // Interface para comunicação com o Supabase
@@ -138,9 +131,16 @@ const saveQuestion = async (question: QuestionRecord): Promise<void> => {
   }
 };
 
-export const generateQuestion = async (params: QuestionParams): Promise<QuestionResponse | null> => {
+export const generateQuestion = async (params: QuestionParams): Promise<QuestionType | null> => {
   try {
     console.log("Gerando questão com parâmetros:", params);
+    
+    // Verificar se a matéria está disponível para este concurso
+    const availableSubjects = getCompetitionSubjects(params.competition);
+    if (!availableSubjects.includes(params.subject)) {
+      console.warn(`A matéria ${params.subject} não está disponível no edital para ${params.competition}`);
+      // Continuar mesmo assim, mas logar o aviso
+    }
     
     // Aumentar a temperatura para maior variabilidade nas questões
     const temperature = 0.95;
@@ -151,7 +151,7 @@ export const generateQuestion = async (params: QuestionParams): Promise<Question
       
       Siga estas diretrizes específicas:
       
-      1. A questão deve ser baseada em editais anteriores deste concurso ou conteúdo típico para esta área.
+      1. A questão deve ser baseada no último edital deste concurso (2023-2024) e conteúdo típico para esta área.
       2. É MUITO IMPORTANTE que a questão seja DIFERENTE das já geradas anteriormente para este concurso.
       3. Foque ESPECIFICAMENTE no conteúdo da matéria ${params.subject} para o concurso ${params.competition}.
       4. Forneça EXATAMENTE 5 alternativas (A, B, C, D, E), sendo apenas uma correta.
@@ -272,7 +272,7 @@ export const generateQuestion = async (params: QuestionParams): Promise<Question
       // Continuamos mesmo se falhar o salvamento, para não interromper a experiência
     }
     
-    return questionData as QuestionResponse;
+    return questionData as QuestionType;
   } catch (error) {
     console.error("Erro ao gerar questão:", error);
     

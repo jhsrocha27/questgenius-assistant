@@ -3,25 +3,10 @@ import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, FileText, ExternalLink } from "lucide-react";
 import CompetitionSelector from "../CompetitionSelector";
-
-// Subjects for each competition type
-const competitionSubjects: Record<string, string[]> = {
-  "TJSP": ["Direito Constitucional", "Direito Administrativo", "Direito Civil", "Direito Processual Civil", "Direito Penal"],
-  "TJMG": ["Direito Constitucional", "Direito Administrativo", "Direito Civil", "Direito Processual Civil", "Direito Penal"],
-  "PCSP": ["Direito Penal", "Direito Processual Penal", "Criminologia", "Medicina Legal", "Direito Constitucional"],
-  "PCMG": ["Direito Penal", "Direito Processual Penal", "Criminologia", "Medicina Legal", "Direito Constitucional"],
-  "PMSP": ["Direito Constitucional", "Direito Administrativo", "Direito Penal", "Legislação de Trânsito", "Raciocínio Lógico"],
-  "PMMG": ["Direito Constitucional", "Direito Administrativo", "Direito Penal", "Legislação de Trânsito", "Raciocínio Lógico"],
-  "OAB": ["Direito Constitucional", "Direito Administrativo", "Direito Civil", "Direito Processual Civil", "Direito Penal", "Direito Empresarial", "Direito Tributário", "Direito do Trabalho"],
-  "INSS": ["Direito Previdenciário", "Direito Constitucional", "Direito Administrativo", "Raciocínio Lógico", "Informática"],
-  "PF": ["Direito Constitucional", "Direito Administrativo", "Direito Penal", "Direito Processual Penal", "Raciocínio Lógico"],
-  "PRF": ["Direito Constitucional", "Direito Administrativo", "Direito Penal", "Legislação de Trânsito", "Raciocínio Lógico"]
-};
-
-// Default subjects for competitions not in the list
-const defaultSubjects = ["Português", "Matemática", "Conhecimentos Gerais", "Raciocínio Lógico", "Informática"];
+import { getCompetitionSubjects, getEditalInfo } from "@/services/editalService";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 interface QuestionFormProps {
   step: number;
@@ -45,19 +30,41 @@ const QuestionForm: React.FC<QuestionFormProps> = ({
   onGenerateQuestion
 }) => {
   const [availableSubjects, setAvailableSubjects] = useState<string[]>([]);
+  const [editalYear, setEditalYear] = useState<number | null>(null);
+  const [editalUrl, setEditalUrl] = useState<string | null>(null);
 
   // Update available subjects when competition changes
   useEffect(() => {
     if (competition) {
-      setAvailableSubjects(competitionSubjects[competition] || defaultSubjects);
+      // Get subjects from edital
+      const subjects = getCompetitionSubjects(competition);
+      setAvailableSubjects(subjects);
+      
+      // Get additional edital info
+      const editalInfo = getEditalInfo(competition);
+      if (editalInfo) {
+        setEditalYear(editalInfo.year);
+        setEditalUrl(editalInfo.url || null);
+      } else {
+        setEditalYear(null);
+        setEditalUrl(null);
+      }
     } else {
       setAvailableSubjects([]);
+      setEditalYear(null);
+      setEditalUrl(null);
     }
   }, [competition]);
 
   const handleSelectCompetition = (selectedCompetition: string) => {
     onSelectCompetition(selectedCompetition);
     toast.success(`Concurso "${selectedCompetition}" selecionado!`);
+  };
+
+  const openEdital = () => {
+    if (editalUrl) {
+      window.open(editalUrl, '_blank');
+    }
   };
 
   return (
@@ -76,6 +83,36 @@ const QuestionForm: React.FC<QuestionFormProps> = ({
             <span className="text-sm text-muted-foreground">Concurso selecionado:</span>
             <span className="font-medium">{competition}</span>
             <Button variant="ghost" size="sm" onClick={onReset}>Alterar</Button>
+            
+            {editalYear && (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-1">
+                    <FileText size={14} />
+                    <span>Edital {editalYear}</span>
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-80">
+                  <div className="space-y-2">
+                    <h4 className="font-medium">Informações do Edital</h4>
+                    <p className="text-sm text-muted-foreground">
+                      As matérias listadas foram baseadas no último edital de {editalYear} para o concurso {competition}.
+                    </p>
+                    {editalUrl && (
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="w-full mt-2 gap-1"
+                        onClick={openEdital}
+                      >
+                        <ExternalLink size={14} />
+                        <span>Consultar Edital</span>
+                      </Button>
+                    )}
+                  </div>
+                </PopoverContent>
+              </Popover>
+            )}
           </div>
           <Select value={subject} onValueChange={onSetSubject}>
             <SelectTrigger className="w-full transition-all-300">
@@ -98,6 +135,22 @@ const QuestionForm: React.FC<QuestionFormProps> = ({
           <p className="text-muted-foreground">
             Vamos gerar questões sobre <span className="font-medium text-foreground">{subject}</span> para o concurso: <span className="font-medium text-foreground">{competition}</span>
           </p>
+          {editalYear && (
+            <p className="text-sm text-muted-foreground">
+              Baseado no edital de {editalYear}
+              {editalUrl && (
+                <Button 
+                  variant="link" 
+                  size="sm" 
+                  className="px-1 h-auto inline-flex items-center gap-1"
+                  onClick={openEdital}
+                >
+                  <ExternalLink size={12} />
+                  <span>Ver edital</span>
+                </Button>
+              )}
+            </p>
+          )}
         </div>
       )}
 
