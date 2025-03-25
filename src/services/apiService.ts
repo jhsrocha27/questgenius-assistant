@@ -10,7 +10,7 @@ const SUPABASE_URL = "https://wbppnfnlkiztahzqkfac.supabase.co";
 
 type QuestionParams = {
   competition: string;
-  difficulty: string;
+  subject: string;
   userId?: string; // Opcional para rastrear questões por usuário
 };
 
@@ -26,7 +26,7 @@ type QuestionResponse = {
 interface QuestionRecord {
   id?: string;
   competition: string;
-  difficulty: string;
+  subject: string;
   question: string;
   options: string[];
   answer: number;
@@ -143,17 +143,17 @@ export const generateQuestion = async (params: QuestionParams): Promise<Question
     console.log("Gerando questão com parâmetros:", params);
     
     // Aumentar a temperatura para maior variabilidade nas questões
-    const temperature = 0.9;
+    const temperature = 0.95;
     
     // Configuração para a chamada à API DeepSeek com instruções aprimoradas
     const prompt = `
-      Por favor, gere uma questão de múltipla escolha ORIGINAL e ÚNICA para o concurso ${params.competition} com nível de dificuldade ${params.difficulty}.
+      Por favor, gere uma questão de múltipla escolha ORIGINAL e ÚNICA para o concurso ${params.competition} sobre a matéria ${params.subject}.
       
       Siga estas diretrizes específicas:
       
       1. A questão deve ser baseada em editais anteriores deste concurso ou conteúdo típico para esta área.
       2. É MUITO IMPORTANTE que a questão seja DIFERENTE das já geradas anteriormente para este concurso.
-      3. Evite questões muito genéricas e prefira conteúdos específicos da área.
+      3. Foque ESPECIFICAMENTE no conteúdo da matéria ${params.subject} para o concurso ${params.competition}.
       4. Forneça EXATAMENTE 5 alternativas (A, B, C, D, E), sendo apenas uma correta.
       5. Verifique a legislação vigente (2024) para garantir que a resposta esteja atualizada.
       6. Crie uma explicação detalhada para a alternativa correta.
@@ -161,6 +161,7 @@ export const generateQuestion = async (params: QuestionParams): Promise<Question
       8. Se a questão envolver leis alteradas recentemente, mencione a mudança na explicação.
       9. Use linguagem clara, objetiva e profissional, própria para concursos.
       10. Evite tecnicismos excessivos e prefira exemplos práticos quando possível.
+      11. Adapte a questão ao nível esperado para o concurso.
       
       Responda APENAS no seguinte formato JSON:
       {
@@ -183,18 +184,18 @@ export const generateQuestion = async (params: QuestionParams): Promise<Question
       Você é uma inteligência artificial especializada na geração de questões para concursos públicos brasileiros, com amplo domínio de todas as matérias exigidas para cada concurso e profundo conhecimento das leis vigentes em 2024.
 
       Suas responsabilidades incluem:
-      1. Gerar questões ÚNICAS e ORIGINAIS baseadas em editais de concursos reais
+      1. Gerar questões ÚNICAS e ORIGINAIS baseadas na matéria solicitada para o concurso específico
       2. EVITAR REPETIÇÕES de conteúdo, formato ou temas
       3. Garantir que as questões estejam atualizadas conforme a legislação vigente
       4. Elaborar alternativas plausíveis, com apenas uma resposta correta
       5. Fornecer explicações detalhadas para cada alternativa
       6. Utilizar linguagem clara, objetiva e didática
       7. Contextualizar as questões à realidade brasileira
-      8. Adaptar o nível de dificuldade conforme solicitado
+      8. Adaptar o nível de dificuldade conforme o concurso solicitado
 
       Todas as suas questões devem ter alta qualidade didática e representar corretamente os conteúdos cobrados nos concursos públicos brasileiros atuais.
       
-      MUITO IMPORTANTE: Para cada solicitação, você DEVE gerar uma questão COMPLETAMENTE NOVA e DIFERENTE das anteriores, mesmo que o tema seja semelhante.
+      MUITO IMPORTANTE: Para cada solicitação, você DEVE gerar uma questão COMPLETAMENTE NOVA e DIFERENTE das anteriores, mesmo que o tema seja semelhante. Não repita questões já criadas anteriormente.
     `;
 
     // Fazendo a chamada para a API DeepSeek
@@ -259,7 +260,7 @@ export const generateQuestion = async (params: QuestionParams): Promise<Question
     try {
       await saveQuestion({
         competition: params.competition,
-        difficulty: params.difficulty,
+        subject: params.subject,
         question: questionData.question,
         options: questionData.options,
         answer: questionData.answer,

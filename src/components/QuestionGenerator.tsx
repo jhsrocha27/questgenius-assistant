@@ -1,12 +1,12 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { ChevronRight, Brain, Send, CopyCheck, RotateCcw, Loader2, BookOpen, PenTool } from "lucide-react";
+import { ChevronRight, Brain, Send, CopyCheck, RotateCcw, Loader2, BookOpen, PenTool, Book } from "lucide-react";
 import { generateQuestion } from "@/services/apiService";
 import CompetitionSelector from "./CompetitionSelector";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -19,22 +19,44 @@ type QuestionType = {
   alternativeExplanations?: string[]; // Explicações para cada alternativa
 };
 
-const difficultyLevels = [
-  { value: "facil", label: "Fácil" },
-  { value: "medio", label: "Médio" },
-  { value: "dificil", label: "Difícil" },
-];
+// Subjects for each competition type
+const competitionSubjects: Record<string, string[]> = {
+  "TJSP": ["Direito Constitucional", "Direito Administrativo", "Direito Civil", "Direito Processual Civil", "Direito Penal"],
+  "TJMG": ["Direito Constitucional", "Direito Administrativo", "Direito Civil", "Direito Processual Civil", "Direito Penal"],
+  "PCSP": ["Direito Penal", "Direito Processual Penal", "Criminologia", "Medicina Legal", "Direito Constitucional"],
+  "PCMG": ["Direito Penal", "Direito Processual Penal", "Criminologia", "Medicina Legal", "Direito Constitucional"],
+  "PMSP": ["Direito Constitucional", "Direito Administrativo", "Direito Penal", "Legislação de Trânsito", "Raciocínio Lógico"],
+  "PMMG": ["Direito Constitucional", "Direito Administrativo", "Direito Penal", "Legislação de Trânsito", "Raciocínio Lógico"],
+  "OAB": ["Direito Constitucional", "Direito Administrativo", "Direito Civil", "Direito Processual Civil", "Direito Penal", "Direito Empresarial", "Direito Tributário", "Direito do Trabalho"],
+  "INSS": ["Direito Previdenciário", "Direito Constitucional", "Direito Administrativo", "Raciocínio Lógico", "Informática"],
+  "PF": ["Direito Constitucional", "Direito Administrativo", "Direito Penal", "Direito Processual Penal", "Raciocínio Lógico"],
+  "PRF": ["Direito Constitucional", "Direito Administrativo", "Direito Penal", "Legislação de Trânsito", "Raciocínio Lógico"]
+};
+
+// Default subjects for competitions not in the list
+const defaultSubjects = ["Português", "Matemática", "Conhecimentos Gerais", "Raciocínio Lógico", "Informática"];
 
 const QuestionGenerator: React.FC = () => {
   const [step, setStep] = useState<number>(1);
   const [competition, setCompetition] = useState<string>("");
-  const [difficulty, setDifficulty] = useState<string>("");
+  const [subject, setSubject] = useState<string>("");
+  const [availableSubjects, setAvailableSubjects] = useState<string[]>([]);
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [question, setQuestion] = useState<QuestionType | null>(null);
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [isAnswered, setIsAnswered] = useState<boolean>(false);
   const [isCorrect, setIsCorrect] = useState<boolean>(false);
   const [explanationTab, setExplanationTab] = useState<string>("general");
+
+  // Update available subjects when competition changes
+  useEffect(() => {
+    if (competition) {
+      setAvailableSubjects(competitionSubjects[competition] || defaultSubjects);
+    } else {
+      setAvailableSubjects([]);
+    }
+    setSubject("");
+  }, [competition]);
 
   const handleSelectCompetition = (selectedCompetition: string) => {
     setCompetition(selectedCompetition);
@@ -43,7 +65,7 @@ const QuestionGenerator: React.FC = () => {
   };
 
   const generateNewQuestion = async () => {
-    if (!competition || !difficulty) {
+    if (!competition || !subject) {
       toast.error("Por favor, preencha todos os campos necessários.");
       return;
     }
@@ -57,7 +79,7 @@ const QuestionGenerator: React.FC = () => {
     try {
       const response = await generateQuestion({
         competition,
-        difficulty
+        subject
       });
 
       if (response) {
@@ -73,8 +95,8 @@ const QuestionGenerator: React.FC = () => {
   };
 
   const handleNextStep = () => {
-    if (step === 2 && !difficulty) {
-      toast.error("Por favor, selecione o nível de dificuldade.");
+    if (step === 2 && !subject) {
+      toast.error("Por favor, selecione uma matéria.");
       return;
     }
     
@@ -110,7 +132,7 @@ const QuestionGenerator: React.FC = () => {
   const resetSelection = () => {
     setStep(1);
     setCompetition("");
-    setDifficulty("");
+    setSubject("");
     setQuestion(null);
     setSelectedOption(null);
     setIsAnswered(false);
@@ -146,20 +168,20 @@ const QuestionGenerator: React.FC = () => {
               
               {step === 2 && (
                 <div className="space-y-4">
-                  <h3 className="text-lg font-medium">Escolha o nível de dificuldade das questões:</h3>
-                  <div className="flex items-center gap-2">
+                  <h3 className="text-lg font-medium">Escolha a matéria que deseja estudar:</h3>
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-sm text-muted-foreground">Concurso selecionado:</span>
                     <span className="font-medium">{competition}</span>
                     <Button variant="ghost" size="sm" onClick={resetSelection}>Alterar</Button>
                   </div>
-                  <Select value={difficulty} onValueChange={setDifficulty}>
+                  <Select value={subject} onValueChange={setSubject}>
                     <SelectTrigger className="w-full transition-all-300">
-                      <SelectValue placeholder="Selecione o nível de dificuldade" />
+                      <SelectValue placeholder="Selecione a matéria" />
                     </SelectTrigger>
                     <SelectContent>
-                      {difficultyLevels.map((level) => (
-                        <SelectItem key={level.value} value={level.value}>
-                          {level.label}
+                      {availableSubjects.map((subj) => (
+                        <SelectItem key={subj} value={subj}>
+                          {subj}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -171,7 +193,7 @@ const QuestionGenerator: React.FC = () => {
                 <div className="space-y-4">
                   <h3 className="text-lg font-medium">Pronto para começar!</h3>
                   <p className="text-muted-foreground">
-                    Vamos gerar questões de {difficulty === "facil" ? "fácil" : difficulty === "medio" ? "média" : "difícil"} dificuldade para o concurso: <span className="font-medium text-foreground">{competition}</span>
+                    Vamos gerar questões sobre <span className="font-medium text-foreground">{subject}</span> para o concurso: <span className="font-medium text-foreground">{competition}</span>
                   </p>
                 </div>
               )}
@@ -190,7 +212,7 @@ const QuestionGenerator: React.FC = () => {
               <div className="space-y-4">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
-                    {difficulty === "facil" ? "Fácil" : difficulty === "medio" ? "Médio" : "Difícil"}
+                    {subject}
                   </span>
                   <span className="inline-flex items-center rounded-full bg-secondary px-2.5 py-0.5 text-xs font-medium">
                     {competition}
